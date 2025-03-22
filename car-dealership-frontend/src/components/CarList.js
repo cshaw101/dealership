@@ -10,7 +10,22 @@ const CarList = () => {
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sort, setSort] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
 
+  // Fetch all cars for suggestions
+  useEffect(() => {
+    const fetchAllCars = async () => {
+      try {
+        const response = await axios.get('http://localhost:5001/api/cars');
+        setCars(response.data);
+      } catch (error) {
+        console.error('Error fetching cars:', error);
+      }
+    };
+    fetchAllCars();
+  }, []);
+
+  // Fetch filtered cars
   const fetchCars = useCallback(async () => {
     try {
       const response = await axios.get('http://localhost:5001/api/cars', {
@@ -29,6 +44,26 @@ const CarList = () => {
     }
   }, [makeFilter, minYear, maxYear, minPrice, maxPrice, sort]);
 
+  // Update suggestions based on makeFilter
+  useEffect(() => {
+    if (makeFilter) {
+      const filteredMakes = cars
+        .map((car) => car.make)
+        .filter((make, index, self) => self.indexOf(make) === index)
+        .filter((make) => make.toLowerCase().includes(makeFilter.toLowerCase()));
+      setSuggestions(filteredMakes);
+    } else {
+      setSuggestions([]);
+    }
+  }, [makeFilter, cars]);
+
+  // Handle suggestion click
+  const handleSuggestionClick = (make) => {
+    setMakeFilter(make); // Set the selected make
+    setSuggestions([]); // Clear suggestions
+  };
+
+  // Apply filters when makeFilter changes
   useEffect(() => {
     fetchCars();
   }, [fetchCars]);
@@ -36,12 +71,23 @@ const CarList = () => {
   return (
     <div className="car-list">
       <div className="filters">
-        <input
-          type="text"
-          placeholder="Filter by make"
-          value={makeFilter}
-          onChange={(e) => setMakeFilter(e.target.value)}
-        />
+        <div className="make-filter">
+          <input
+            type="text"
+            placeholder="Filter by make"
+            value={makeFilter}
+            onChange={(e) => setMakeFilter(e.target.value)}
+          />
+          {suggestions.length > 0 && (
+            <ul className="suggestions">
+              {suggestions.map((make, index) => (
+                <li key={index} onClick={() => handleSuggestionClick(make)}>
+                  {make}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <input
           type="number"
           placeholder="Min year"

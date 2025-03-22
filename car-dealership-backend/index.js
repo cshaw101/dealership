@@ -56,5 +56,21 @@ app.post('/api/cars', async (req, res) => {
   res.json(data);
 });
 
+app.post('/api/admin/cars', async (req, res) => {
+  const { make, model, year, price, image_url } = req.body;
+
+  // Validate input (optional but recommended)
+  if (!make || !model || !year || !price) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  const { data, error } = await supabase
+    .from('cars')
+    .insert([{ make, model, year, price, image_url }]);
+
+  if (error) return res.status(500).json({ error });
+  res.json(data);
+});
+
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
