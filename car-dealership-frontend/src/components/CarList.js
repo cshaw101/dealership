@@ -12,7 +12,6 @@ const CarList = () => {
   const [sort, setSort] = useState('');
   const [suggestions, setSuggestions] = useState([]);
 
-  // Debounced fetchCars function
   const fetchCars = useCallback(async () => {
     try {
       const response = await axios.get('http://localhost:5001/api/cars', {
@@ -31,20 +30,15 @@ const CarList = () => {
     }
   }, [makeFilter, minYear, maxYear, minPrice, maxPrice, sort]);
 
-  // Fetch all cars for suggestions
+  // Fetch cars on mount and when filters change
   useEffect(() => {
-    const fetchAllCars = async () => {
-      try {
-        const response = await axios.get('http://localhost:5001/api/cars');
-        setCars(response.data);
-      } catch (error) {
-        console.error('Error fetching cars:', error);
-      }
-    };
-    fetchAllCars();
-  }, []);
+    const timer = setTimeout(() => {
+      fetchCars();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [fetchCars]);
 
-  // Filtered makes using useMemo for optimization
+  // Filtered makes for suggestions
   const filteredMakes = useMemo(() => {
     if (makeFilter) {
       return cars
@@ -55,25 +49,15 @@ const CarList = () => {
     return [];
   }, [makeFilter, cars]);
 
-  // Update suggestions based on makeFilter
   useEffect(() => {
     setSuggestions(filteredMakes);
   }, [filteredMakes]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchCars();
-    }, 300); // Debounce time (300ms)
-    return () => clearTimeout(timer); // Cleanup on input change
-  }, [fetchCars, makeFilter, minYear, maxYear, minPrice, maxPrice, sort]);
-
-  // Handle suggestion click
   const handleSuggestionClick = (make) => {
-    setMakeFilter(make); // Set the selected make
-    setSuggestions([]); // Clear suggestions
+    setMakeFilter(make);
+    setSuggestions([]);
   };
 
-  // Basic validation for numeric inputs
   const isValidNumber = (value) => !isNaN(value) && value >= 0;
 
   return (

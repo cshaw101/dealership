@@ -13,12 +13,42 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Fetch all cars
 app.get('/api/cars', async (req, res) => {
-  // Your logic for fetching cars goes here
-  const { data, error } = await supabase.from('cars').select('*');
+  const { make, minYear, maxYear, minPrice, maxPrice, sort } = req.query;
+
+  let query = supabase.from('cars').select('*');
+
+  // Apply filters
+  if (make) {
+    query = query.ilike('make', `%${make}%`); // Case-insensitive partial match
+  }
+  if (minYear) {
+    query = query.gte('year', parseInt(minYear)); // Greater than or equal to
+  }
+  if (maxYear) {
+    query = query.lte('year', parseInt(maxYear)); // Less than or equal to
+  }
+  if (minPrice) {
+    query = query.gte('price', parseFloat(minPrice));
+  }
+  if (maxPrice) {
+    query = query.lte('price', parseFloat(maxPrice));
+  }
+
+  // Apply sorting
+  if (sort) {
+    const [field, direction] = sort.split('_');
+    const sortField = field === 'price' ? 'price' : 'year';
+    const sortDirection = direction === 'asc' ? 'asc' : 'desc';
+    query = query.order(sortField, { ascending: sortDirection === 'asc' });
+  }
+
+  const { data, error } = await query;
 
   if (error) {
+    console.error('Error fetching cars:', error);
     return res.status(500).json({ error: 'Error fetching cars' });
   }
+
   res.json(data);
 });
 
