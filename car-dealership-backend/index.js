@@ -11,22 +11,10 @@ const supabaseUrl = 'https://eizaaizbmoykhlxvkctv.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpemFhaXpibW95a2hseHZrY3R2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI3MDY5MzMsImV4cCI6MjA1ODI4MjkzM30.VlhSFOC5gfzD_UBGLhmWi-MS1j1YLZ3Ml5LDxRgOWRU';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-
-
-
-app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return res.status(401).json({ error: error.message });
-  res.json({ token: data.session.access_token });
-});
-
 // Fetch all cars (public endpoint)
 app.get('/api/cars', async (req, res) => {
   const { make, minYear, maxYear, minPrice, maxPrice, sort } = req.query;
-
   let query = supabase.from('cars').select('*');
-
   if (make) query = query.ilike('make', `%${make}%`);
   if (minYear) query = query.gte('year', parseInt(minYear));
   if (maxYear) query = query.lte('year', parseInt(maxYear));
@@ -38,7 +26,6 @@ app.get('/api/cars', async (req, res) => {
     const sortDirection = direction === 'asc' ? 'asc' : 'desc';
     query = query.order(sortField, { ascending: sortDirection === 'asc' });
   }
-
   const { data, error } = await query;
   if (error) {
     console.error('Error fetching cars:', error);
@@ -50,12 +37,7 @@ app.get('/api/cars', async (req, res) => {
 // Fetch a single car by ID (public endpoint)
 app.get('/api/cars/:id', async (req, res) => {
   const { id } = req.params;
-  const { data, error } = await supabase
-    .from('cars')
-    .select('*')
-    .eq('id', id)
-    .single();
-
+  const { data, error } = await supabase.from('cars').select('*').eq('id', id).single();
   if (error) return res.status(500).json({ error });
   res.json(data);
 });
@@ -70,32 +52,39 @@ app.get('/api/user', async (req, res) => {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role')
+    .select('email, name, role')
     .eq('id', data.user.id)
     .single();
 
   if (profileError) return res.status(403).json({ error: 'User profile not found' });
 
-  res.json({ id: data.user.id, role: profile.role });
+  res.json({ id: data.user.id, email: profile.email, name: profile.name, role: profile.role });
 });
 
 // Sign up a new user
 app.post('/api/signup', async (req, res) => {
-  const { email, password, role } = req.body;
-  const validRoles = ['admin', 'manager', 'associate']; // Updated to 'associate'
-  if (!validRoles.includes(role)) {
-    return res.status(400).json({ error: 'Invalid role' });
-  }
+  const { email, password, name, role } = req.body;
+  const validRoles = ['admin', 'manager', 'associate'];
+  if (!validRoles.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  if (!email) return res.status(400).json({ error: 'Email is required' });
 
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) return res.status(500).json({ error });
 
   const { error: profileError } = await supabase.from('profiles').insert([
-    { id: data.user.id, role }
+    { id: data.user.id, email, name, role }
   ]);
   if (profileError) return res.status(500).json({ error: profileError });
 
   res.json({ message: 'User created successfully', userId: data.user.id });
+});
+
+// Temporary login endpoint for testing
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) return res.status(401).json({ error: error.message });
+  res.json({ token: data.session.access_token });
 });
 
 // Add a car (Admin, Manager, Associate)
@@ -131,17 +120,12 @@ app.post('/api/admin/cars', async (req, res) => {
     mileage: mileage !== undefined && mileage !== null ? mileage : 0,
   };
 
-  const { data, error } = await supabase
-    .from('cars')
-    .insert([carData])
-    .select(); // Add this to return the inserted row(s)
-
+  const { data, error } = await supabase.from('cars').insert([carData]).select();
   if (error) {
     console.error('Error inserting car:', error);
     return res.status(500).json({ error: 'Error inserting car' });
   }
-
-  res.json(data); // Now data will contain the inserted car object
+  res.json(data);
 });
 
 // Delete a car (Admin, Manager, Associate)
@@ -212,11 +196,13 @@ app.post('/api/managers/sales_associates', async (req, res) => {
     return res.status(403).json({ error: 'Access denied: Admins or Managers only' });
   }
 
-  const { email, password } = req.body;
+  const { email, password, name } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) return res.status(500).json({ error });
 
-  await supabase.from('profiles').insert([{ id: data.user.id, role: 'associate' }]);
+  await supabase.from('profiles').insert([{ id: data.user.id, email, name, role: 'associate' }]);
   res.json({ message: 'Associate added successfully' });
 });
 
@@ -245,14 +231,34 @@ app.delete('/api/managers/associates/:id', async (req, res) => {
   res.json({ message: 'Associate deleted' });
 });
 
-// Deprecated endpoints (cleanup)
-// Note: Remove or redirect these if not needed
-app.post('/api/sales/cars', async (req, res) => {
-  return res.status(410).json({ error: 'Endpoint deprecated, use /api/admin/cars' });
-});
+// Fetch all employees (Admin and Manager only)
+app.get('/api/employees', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
-app.put('/api/sales/cars/:id/request_delete', async (req, res) => {
-  return res.status(410).json({ error: 'Endpoint deprecated, use /api/admin/cars/:id DELETE' });
+  const { data: userData, error: authError } = await supabase.auth.getUser(token);
+  if (authError) return res.status(401).json({ error: 'Invalid token' });
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userData.user.id)
+    .single();
+
+  if (profileError || !['admin', 'manager'].includes(profile.role)) {
+    return res.status(403).json({ error: 'Access denied: Admins or Managers only' });
+  }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, name, role')
+    .neq('id', userData.user.id); // Exclude the current user
+
+  if (error) {
+    console.error('Error fetching employees:', error);
+    return res.status(500).json({ error: 'Error fetching employees' });
+  }
+  res.json(data);
 });
 
 const PORT = process.env.PORT || 5001;
