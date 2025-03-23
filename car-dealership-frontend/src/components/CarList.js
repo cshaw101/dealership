@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import CarCard from './CarCard';
 
@@ -12,20 +12,7 @@ const CarList = () => {
   const [sort, setSort] = useState('');
   const [suggestions, setSuggestions] = useState([]);
 
-  // Fetch all cars for suggestions
-  useEffect(() => {
-    const fetchAllCars = async () => {
-      try {
-        const response = await axios.get('http://localhost:5001/api/cars');
-        setCars(response.data);
-      } catch (error) {
-        console.error('Error fetching cars:', error);
-      }
-    };
-    fetchAllCars();
-  }, []);
-
-  // Fetch filtered cars
+  // Debounced fetchCars function
   const fetchCars = useCallback(async () => {
     try {
       const response = await axios.get('http://localhost:5001/api/cars', {
@@ -44,18 +31,41 @@ const CarList = () => {
     }
   }, [makeFilter, minYear, maxYear, minPrice, maxPrice, sort]);
 
-  // Update suggestions based on makeFilter
+  // Fetch all cars for suggestions
   useEffect(() => {
+    const fetchAllCars = async () => {
+      try {
+        const response = await axios.get('http://localhost:5001/api/cars');
+        setCars(response.data);
+      } catch (error) {
+        console.error('Error fetching cars:', error);
+      }
+    };
+    fetchAllCars();
+  }, []);
+
+  // Filtered makes using useMemo for optimization
+  const filteredMakes = useMemo(() => {
     if (makeFilter) {
-      const filteredMakes = cars
+      return cars
         .map((car) => car.make)
         .filter((make, index, self) => self.indexOf(make) === index)
         .filter((make) => make.toLowerCase().includes(makeFilter.toLowerCase()));
-      setSuggestions(filteredMakes);
-    } else {
-      setSuggestions([]);
     }
+    return [];
   }, [makeFilter, cars]);
+
+  // Update suggestions based on makeFilter
+  useEffect(() => {
+    setSuggestions(filteredMakes);
+  }, [filteredMakes]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchCars();
+    }, 300); // Debounce time (300ms)
+    return () => clearTimeout(timer); // Cleanup on input change
+  }, [fetchCars, makeFilter, minYear, maxYear, minPrice, maxPrice, sort]);
 
   // Handle suggestion click
   const handleSuggestionClick = (make) => {
@@ -63,10 +73,8 @@ const CarList = () => {
     setSuggestions([]); // Clear suggestions
   };
 
-  // Apply filters when makeFilter changes
-  useEffect(() => {
-    fetchCars();
-  }, [fetchCars]);
+  // Basic validation for numeric inputs
+  const isValidNumber = (value) => !isNaN(value) && value >= 0;
 
   return (
     <div className="car-list">
@@ -92,25 +100,25 @@ const CarList = () => {
           type="number"
           placeholder="Min year"
           value={minYear}
-          onChange={(e) => setMinYear(e.target.value)}
+          onChange={(e) => isValidNumber(e.target.value) && setMinYear(e.target.value)}
         />
         <input
           type="number"
           placeholder="Max year"
           value={maxYear}
-          onChange={(e) => setMaxYear(e.target.value)}
+          onChange={(e) => isValidNumber(e.target.value) && setMaxYear(e.target.value)}
         />
         <input
           type="number"
           placeholder="Min price"
           value={minPrice}
-          onChange={(e) => setMinPrice(e.target.value)}
+          onChange={(e) => isValidNumber(e.target.value) && setMinPrice(e.target.value)}
         />
         <input
           type="number"
           placeholder="Max price"
           value={maxPrice}
-          onChange={(e) => setMaxPrice(e.target.value)}
+          onChange={(e) => isValidNumber(e.target.value) && setMaxPrice(e.target.value)}
         />
         <select value={sort} onChange={(e) => setSort(e.target.value)}>
           <option value="">Sort by</option>
@@ -120,9 +128,12 @@ const CarList = () => {
           <option value="year_desc">Year: Newest to Oldest</option>
         </select>
       </div>
-      {cars.map((car) => (
-        <CarCard key={car.id} car={car} />
-      ))}
+
+      {cars.length === 0 ? (
+        <p>No cars found based on the current filters</p>
+      ) : (
+        cars.map((car) => <CarCard key={car.id} car={car} />)
+      )}
     </div>
   );
 };

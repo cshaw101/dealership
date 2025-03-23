@@ -1,19 +1,27 @@
 import React, { useState } from 'react';
+import { supabase } from '../lib/supaBaseClient';
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    console.log('Login form submitted'); // Debugging log
-    if (username === 'admin' && password === 'admin123') {
-      localStorage.setItem('isAuthenticated', 'true');
-      console.log('Logged in, isAuthenticated set to true'); // Debugging log
-      console.log('Navigating to /admin'); // Debugging log
-      navigate('/admin');
+    setError(null);
+
+    const { user, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setError(error.message);
+    } else {
+      console.log('User logged in:', user);
+      navigate('/admin'); // Redirect to admin dashboard
     }
   };
 
@@ -22,10 +30,10 @@ const Login = () => {
       <h1>Admin Login</h1>
       <form onSubmit={handleLogin}>
         <input
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           required
         />
         <input
@@ -37,6 +45,7 @@ const Login = () => {
         />
         <button type="submit">Log In</button>
       </form>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
   );
 };
