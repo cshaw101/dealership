@@ -11,8 +11,10 @@ const CarList = () => {
   const [maxPrice, setMaxPrice] = useState('');
   const [sort, setSort] = useState('');
   const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const fetchCars = useCallback(async () => {
+    setLoading(true);
     try {
       const response = await axios.get('http://localhost:5001/api/cars', {
         params: {
@@ -27,10 +29,11 @@ const CarList = () => {
       setCars(response.data);
     } catch (error) {
       console.error('Error fetching cars:', error);
+    } finally {
+      setLoading(false);
     }
   }, [makeFilter, minYear, maxYear, minPrice, maxPrice, sort]);
 
-  // Fetch cars on mount and when filters change
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchCars();
@@ -38,7 +41,6 @@ const CarList = () => {
     return () => clearTimeout(timer);
   }, [fetchCars]);
 
-  // Filtered makes for suggestions
   const filteredMakes = useMemo(() => {
     if (makeFilter) {
       return cars
@@ -66,7 +68,7 @@ const CarList = () => {
         <div className="make-filter">
           <input
             type="text"
-            placeholder="Filter by make"
+            placeholder="Filter by Make"
             value={makeFilter}
             onChange={(e) => setMakeFilter(e.target.value)}
           />
@@ -82,41 +84,47 @@ const CarList = () => {
         </div>
         <input
           type="number"
-          placeholder="Min year"
+          placeholder="Min Year"
           value={minYear}
           onChange={(e) => isValidNumber(e.target.value) && setMinYear(e.target.value)}
         />
         <input
           type="number"
-          placeholder="Max year"
+          placeholder="Max Year"
           value={maxYear}
           onChange={(e) => isValidNumber(e.target.value) && setMaxYear(e.target.value)}
         />
         <input
           type="number"
-          placeholder="Min price"
+          placeholder="Min Price"
           value={minPrice}
           onChange={(e) => isValidNumber(e.target.value) && setMinPrice(e.target.value)}
         />
         <input
           type="number"
-          placeholder="Max price"
+          placeholder="Max Price"
           value={maxPrice}
           onChange={(e) => isValidNumber(e.target.value) && setMaxPrice(e.target.value)}
         />
         <select value={sort} onChange={(e) => setSort(e.target.value)}>
-          <option value="">Sort by</option>
+          <option value="">Sort By</option>
           <option value="price_asc">Price: Low to High</option>
           <option value="price_desc">Price: High to Low</option>
-          <option value="year_asc">Year: Oldest to Newest</option>
-          <option value="year_desc">Year: Newest to Oldest</option>
+          <option value="year_asc">Year: Old to New</option>
+          <option value="year_desc">Year: New to Old</option>
         </select>
       </div>
 
-      {cars.length === 0 ? (
-        <p>No cars found based on the current filters</p>
+      {loading ? (
+        <p className="loading">Loading vehicles...</p>
+      ) : cars.length === 0 ? (
+        <p className="no-results">No cars found with these filters.</p>
       ) : (
-        cars.map((car) => <CarCard key={car.id} car={car} />)
+        <div className="car-grid">
+          {cars.map((car) => (
+            <CarCard key={car.id} car={car} />
+          ))}
+        </div>
       )}
     </div>
   );
